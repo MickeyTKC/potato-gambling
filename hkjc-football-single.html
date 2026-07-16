@@ -1,0 +1,682 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>投注策略模擬器</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #0f0c29, #302b63, #24243e);
+            color: #e0e0e0;
+            min-height: 100vh;
+            padding: 20px;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 {
+            text-align: center;
+            font-size: 2em;
+            margin-bottom: 10px;
+            background: linear-gradient(90deg, #f093fb, #f5576c, #4facfe);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+        .subtitle { text-align: center; color: #888; margin-bottom: 30px; font-size: 0.9em; }
+        
+        .controls-wrapper {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+            margin-bottom: 25px;
+        }
+        @media (max-width: 768px) {
+            .controls-wrapper { grid-template-columns: 1fr; }
+        }
+
+        .controls-section {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 20px;
+            backdrop-filter: blur(10px);
+        }
+        .controls-section h3 {
+            color: #4facfe;
+            margin-bottom: 15px;
+            font-size: 1.1em;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            padding-bottom: 8px;
+        }
+
+        .controls-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        .control-group { display: flex; flex-direction: column; gap: 6px; }
+        .control-group label {
+            font-size: 0.8em;
+            color: #aaa;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .control-group input, .control-group select {
+            padding: 10px 14px;
+            border: 1px solid rgba(255,255,255,0.15);
+            border-radius: 8px;
+            background: rgba(255,255,255,0.08);
+            color: #fff;
+            font-size: 1em;
+            transition: all 0.3s;
+        }
+        .control-group input:focus, .control-group select:focus {
+            outline: none;
+            border-color: #4facfe;
+            box-shadow: 0 0 12px rgba(79,172,254,0.3);
+        }
+        .control-group select option { background: #1a1a2e; color: #fff; }
+
+        .prob-summary {
+            grid-column: 1 / -1;
+            text-align: right;
+            font-size: 0.9em;
+            font-weight: bold;
+            padding: 8px;
+            border-radius: 6px;
+            transition: all 0.3s;
+        }
+        .prob-valid { color: #00e676; background: rgba(0, 230, 118, 0.1); }
+        .prob-invalid { color: #ff5252; background: rgba(255, 82, 82, 0.1); }
+
+        .btn-row {
+            grid-column: 1 / -1;
+            display: flex;
+            gap: 12px;
+            justify-content: center;
+            margin-top: 10px;
+        }
+        button {
+            padding: 12px 36px;
+            border: none;
+            border-radius: 8px;
+            font-size: 1em;
+            font-weight: 700;
+            cursor: pointer;
+            transition: all 0.3s;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .btn-run {
+            background: linear-gradient(135deg, #4facfe, #00f2fe);
+            color: #0f0c29;
+        }
+        .btn-run:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 6px 20px rgba(79,172,254,0.4);
+        }
+        .btn-run:disabled {
+            background: #555;
+            color: #888;
+            cursor: not-allowed;
+            transform: none;
+            box-shadow: none;
+        }
+        .btn-reset {
+            background: rgba(255,255,255,0.1);
+            color: #ccc;
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+        .btn-reset:hover { background: rgba(255,255,255,0.15); }
+
+        .chart-container {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 25px;
+            margin-bottom: 25px;
+            backdrop-filter: blur(10px);
+            position: relative;
+            height: 450px;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-bottom: 25px;
+        }
+        .stat-card {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 18px;
+            text-align: center;
+            backdrop-filter: blur(10px);
+            transition: transform 0.3s;
+        }
+        .stat-card:hover { transform: translateY(-3px); }
+        .stat-card .stat-value { font-size: 1.5em; font-weight: 700; margin-bottom: 4px; }
+        .stat-card .stat-label { font-size: 0.75em; color: #888; text-transform: uppercase; letter-spacing: 0.5px; }
+        
+        .stat-positive { color: #00e676; }
+        .stat-negative { color: #ff5252; }
+        .stat-neutral { color: #4facfe; }
+        .stat-warning { color: #ffab40; }
+        .stat-info { color: #ffffff; }
+
+        .rules-panel {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 16px;
+            padding: 25px;
+            backdrop-filter: blur(10px);
+        }
+        .rules-panel h3 { color: #4facfe; margin-bottom: 15px; font-size: 1.1em; }
+        .rules-panel table { width: 100%; border-collapse: collapse; }
+        .rules-panel th, .rules-panel td {
+            padding: 10px 14px;
+            text-align: left;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.9em;
+        }
+        .rules-panel th { color: #aaa; font-weight: 600; text-transform: uppercase; font-size: 0.8em; letter-spacing: 0.5px; }
+        .prob-bar { display: inline-block; height: 6px; border-radius: 3px; margin-right: 8px; vertical-align: middle; }
+        
+        .loading {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            font-size: 1.2em;
+            color: #4facfe;
+            display: none;
+        }
+        .legend-custom {
+            display: flex; gap: 20px; justify-content: center; margin-top: 10px; flex-wrap: wrap;
+        }
+        .legend-item { display: flex; align-items: center; gap: 6px; font-size: 0.85em; color: #aaa; }
+        .legend-dot { width: 12px; height: 12px; border-radius: 50%; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🎲 投注策略模擬器</h1>
+        <p class="subtitle">自訂機率分佈與攻守策略的蒙地卡羅視覺化分析</p>
+
+        <div class="controls-wrapper">
+            <!-- 機率設定部分 -->
+            <div class="controls-section">
+                <h3>🎲 機率設定 (總和須為 100%)</h3>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label>落注成功 (%)</label>
+                        <input type="number" id="probWin" value="50" min="0" max="100" oninput="checkProbSum()">
+                    </div>
+                    <div class="control-group">
+                        <label>落注失敗 (%)</label>
+                        <input type="number" id="probPartialLoss" value="30" min="0" max="100" oninput="checkProbSum()">
+                    </div>
+                    <div class="control-group">
+                        <label>撤退成功 (%)</label>
+                        <input type="number" id="probBreakEven" value="18" min="0" max="100" oninput="checkProbSum()">
+                    </div>
+                    <div class="control-group">
+                        <label>撤退失敗 (%)</label>
+                        <input type="number" id="probTotalLoss" value="2" min="0" max="100" oninput="checkProbSum()">
+                    </div>
+                    <div id="probSummary" class="prob-summary prob-valid">當前總和: 100%</div>
+                </div>
+            </div>
+
+            <!-- 策略設定部分 -->
+            <div class="controls-section">
+                <h3>⚙️ 策略設定</h3>
+                <div class="controls-grid">
+                    <div class="control-group">
+                        <label>初始帳戶餘額</label>
+                        <input type="number" id="initialBalance" value="10000" min="1000" step="1000">
+                    </div>
+                    <div class="control-group">
+                        <label>執行次數（回合）</label>
+                        <input type="number" id="rounds" value="200" min="10" max="5000">
+                    </div>
+                    <div class="control-group">
+                        <label>賠率</label>
+                        <input type="number" id="odds" value="2.0" min="1.01" step="0.1">
+                    </div>
+                    <div class="control-group">
+                        <label>模式選擇</label>
+                        <select id="mode">
+                            <option value="aggressive">進取 (Aggressive)</option>
+                            <option value="defensive">防守 (Defensive)</option>
+                            <option value="5050">50/50 (隨機切換)</option>
+                            <option value="2575">25/75 (偏防守)</option>
+                            <option value="7525">75/25 (偏進取)</option>
+                        </select>
+                    </div>
+                    <div class="control-group">
+                        <label>進取階段下注 (%)</label>
+                        <input type="number" id="betPercent" value="50" min="1" max="100" step="1">
+                    </div>
+                    <div class="control-group">
+                        <label>模擬次數（取平均值）</label>
+                        <input type="number" id="simulations" value="500" min="10" max="10000">
+                    </div>
+                </div>
+            </div>
+
+            <div class="btn-row" style="grid-column: 1 / -1;">
+                <button class="btn-run" id="btnRun" onclick="runSimulation()">▶ 執行模擬</button>
+                <button class="btn-reset" onclick="resetChart()">↺ 重置</button>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <canvas id="simChart"></canvas>
+            <div class="loading" id="loading">模擬運算中...</div>
+        </div>
+
+        <div class="legend-custom" id="legendArea"></div>
+        <div class="stats-grid" id="statsGrid"></div>
+
+        <div class="rules-panel">
+            <h3>📋 策略規則說明</h3>
+            <table>
+                <thead>
+                    <tr>
+                        <th>情境</th>
+                        <th>使用者設定機率</th>
+                        <th>財務結果</th>
+                        <th>視覺</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>符合市場反映（落注成功）</td>
+                        <td id="dispProbWin">50%</td>
+                        <td>注碼 × 賠率 (淨賺: 注碼 × (賠率 - 1))</td>
+                        <td><span class="prob-bar" style="width:100px;background:#00e676;"></span></td>
+                    </tr>
+                    <tr>
+                        <td>符合市場反映（落注失敗）</td>
+                        <td id="dispProbPartialLoss">30%</td>
+                        <td>注碼 × 0.95 (損失 5%)</td>
+                        <td><span class="prob-bar" style="width:60px;background:#ffab40;"></span></td>
+                    </tr>
+                    <tr>
+                        <td>不符合市場反映（成功撤退）</td>
+                        <td id="dispProbBreakEven">18%</td>
+                        <td>注碼 × 1 (原金返還，無盈虧)</td>
+                        <td><span class="prob-bar" style="width:36px;background:#4facfe;"></span></td>
+                    </tr>
+                    <tr>
+                        <td>不符合市場反映（撤退失敗）</td>
+                        <td id="dispProbTotalLoss">2%</td>
+                        <td>注碼 × 0 (全額損失)</td>
+                        <td><span class="prob-bar" style="width:8px;background:#ff5252;"></span></td>
+                    </tr>
+                </tbody>
+            </table>
+            <div style="margin-top: 15px; font-size: 0.85em; color: #aaa; line-height: 1.6;">
+                <strong>💡 策略備註：</strong><br>
+                1. <strong>防守階段</strong>（純利潤 &lt; 40,000）：固定下注 10,000。<br>
+                2. <strong>進取階段</strong>（純利潤 ≥ 40,000）：下注金額 = 當前帳戶餘額 × 設定的下注(%)。<br>
+                3. <strong>重置機制</strong>：當帳戶餘額 ≥ 初始餘額的 20 倍，或餘額歸 0 時，注碼重置為 10,000。
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let chart = null;
+        let isProbValid = true;
+
+        function checkProbSum() {
+            const p1 = parseFloat(document.getElementById('probWin').value) || 0;
+            const p2 = parseFloat(document.getElementById('probPartialLoss').value) || 0;
+            const p3 = parseFloat(document.getElementById('probBreakEven').value) || 0;
+            const p4 = parseFloat(document.getElementById('probTotalLoss').value) || 0;
+            const sum = p1 + p2 + p3 + p4;
+            
+            const summaryEl = document.getElementById('probSummary');
+            const btnRun = document.getElementById('btnRun');
+            
+            summaryEl.textContent = `當前總和: ${sum}%`;
+            
+            if (Math.abs(sum - 100) < 0.01) {
+                summaryEl.className = 'prob-summary prob-valid';
+                isProbValid = true;
+                btnRun.disabled = false;
+            } else {
+                summaryEl.className = 'prob-summary prob-invalid';
+                isProbValid = false;
+                btnRun.disabled = true;
+            }
+        }
+
+        function simulateOne(initialBalance, rounds, odds, mode, betPercent, pWin, pPartial, pBreakEven, pTotal) {
+            let balance = initialBalance;
+            let netProfit = 0;
+            let balances = [initialBalance];
+            let bet = 10000;
+            const resetThreshold = initialBalance * 20;
+
+            const t1 = pWin;
+            const t2 = pWin + pPartial;
+            const t3 = pWin + pPartial + pBreakEven;
+
+            for (let i = 0; i < rounds; i++) {
+                if (balance <= 0) {
+                    for (let j = i; j < rounds; j++) balances.push(0);
+                    break;
+                }
+
+                let useAggressive = false;
+                const isProfitTargetMet = netProfit >= 40000;
+
+                if (mode === 'defensive') {
+                    useAggressive = false;
+                } else if (mode === 'aggressive') {
+                    useAggressive = isProfitTargetMet;
+                } else {
+                    let aggressiveChance = 0;
+                    if (mode === '5050') aggressiveChance = 0.50;
+                    else if (mode === '2575') aggressiveChance = 0.25;
+                    else if (mode === '7525') aggressiveChance = 0.75;
+                    
+                    useAggressive = isProfitTargetMet && (Math.random() < aggressiveChance);
+                }
+
+                if (useAggressive) {
+                    bet = balance * betPercent;
+                } else {
+                    bet = 10000;
+                }
+
+                bet = Math.min(bet, balance);
+                if (bet <= 0) {
+                    for (let j = i; j < rounds; j++) balances.push(balance);
+                    break;
+                }
+
+                const rand = Math.random();
+                if (rand < t1) {
+                    const gain = bet * (odds - 1);
+                    balance += gain;
+                    netProfit += gain;
+                } else if (rand < t2) {
+                    const loss = bet * 0.05;
+                    balance -= loss;
+                    netProfit -= loss;
+                } else if (rand < t3) {
+                    // 撤退成功 (原金返還)
+                } else {
+                    balance -= bet;
+                    netProfit -= bet;
+                }
+
+                if (balance >= resetThreshold || balance <= 0) {
+                    bet = 10000;
+                }
+
+                balances.push(balance);
+            }
+
+            return balances;
+        }
+
+        function percentile(arr, p) {
+            const sorted = [...arr].sort((a, b) => a - b);
+            const idx = Math.ceil(p / 100 * sorted.length) - 1;
+            return sorted[Math.max(0, idx)];
+        }
+
+        function runSimulation() {
+            if (!isProbValid) {
+                alert('機率總和必須為 100% 才能執行模擬！');
+                return;
+            }
+
+            const initialBalance = parseFloat(document.getElementById('initialBalance').value);
+            const rounds = parseInt(document.getElementById('rounds').value);
+            const odds = parseFloat(document.getElementById('odds').value);
+            const mode = document.getElementById('mode').value;
+            const betPercent = parseFloat(document.getElementById('betPercent').value) / 100;
+            const numSims = parseInt(document.getElementById('simulations').value);
+
+            const pWin = parseFloat(document.getElementById('probWin').value) / 100;
+            const pPartial = parseFloat(document.getElementById('probPartialLoss').value) / 100;
+            const pBreakEven = parseFloat(document.getElementById('probBreakEven').value) / 100;
+            const pTotal = parseFloat(document.getElementById('probTotalLoss').value) / 100;
+
+            document.getElementById('loading').style.display = 'block';
+
+            setTimeout(() => {
+                const allPaths = [];
+                for (let s = 0; s < numSims; s++) {
+                    allPaths.push(simulateOne(initialBalance, rounds, odds, mode, betPercent, pWin, pPartial, pBreakEven, pTotal));
+                }
+
+                const avgPath = [], p5Path = [], p25Path = [], p50Path = [], p75Path = [], p95Path = [];
+                const maxLen = allPaths[0].length;
+
+                for (let t = 0; t < maxLen; t++) {
+                    const vals = allPaths.map(p => p[t] !== undefined ? p[t] : 0);
+                    avgPath.push(vals.reduce((a, b) => a + b, 0) / vals.length);
+                    p5Path.push(percentile(vals, 5));
+                    p25Path.push(percentile(vals, 25));
+                    p50Path.push(percentile(vals, 50)); // 新增中位數
+                    p75Path.push(percentile(vals, 75));
+                    p95Path.push(percentile(vals, 95));
+                }
+
+                const finalVals = allPaths.map(p => p[p.length - 1]);
+                const avgFinal = finalVals.reduce((a, b) => a + b, 0) / finalVals.length;
+                const ruinCount = finalVals.filter(v => v <= 0).length;
+                const successCount = finalVals.filter(v => v >= initialBalance * 20).length;
+                const maxFinal = Math.max(...finalVals);
+                const medianFinal = percentile(finalVals, 50);
+
+                updateChart(avgPath, p5Path, p25Path, p50Path, p75Path, p95Path, rounds, mode);
+                updateStats(avgFinal, medianFinal, maxFinal, ruinCount, successCount, numSims, initialBalance, mode, betPercent);
+                updateLegend(mode, betPercent);
+                updateRuleDisplay(pWin, pPartial, pBreakEven, pTotal);
+
+                document.getElementById('loading').style.display = 'none';
+            }, 50);
+        }
+
+        function updateRuleDisplay(p1, p2, p3, p4) {
+            document.getElementById('dispProbWin').textContent = (p1 * 100).toFixed(0) + '%';
+            document.getElementById('dispProbPartialLoss').textContent = (p2 * 100).toFixed(0) + '%';
+            document.getElementById('dispProbBreakEven').textContent = (p3 * 100).toFixed(0) + '%';
+            document.getElementById('dispProbTotalLoss').textContent = (p4 * 100).toFixed(0) + '%';
+        }
+
+        function updateChart(avg, p5, p25, p50, p75, p95, rounds, mode) {
+            const ctx = document.getElementById('simChart').getContext('2d');
+            const labels = Array.from({ length: avg.length }, (_, i) => i);
+
+            if (chart) chart.destroy();
+
+            const modeColors = {
+                aggressive: { main: '#f5576c', band: 'rgba(245,87,108,0.15)' },
+                defensive: { main: '#4facfe', band: 'rgba(79,172,254,0.15)' },
+                '5050': { main: '#f093fb', band: 'rgba(240,147,251,0.15)' },
+                '2575': { main: '#43e97b', band: 'rgba(67,233,123,0.15)' },
+                '7525': { main: '#fa709a', band: 'rgba(250,112,154,0.15)' }
+            };
+            const colors = modeColors[mode] || modeColors.aggressive;
+
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        { label: '95th Percentile', data: p95, borderColor: 'transparent', backgroundColor: 'transparent', pointRadius: 0, fill: false },
+                        { label: '75th Percentile', data: p75, borderColor: 'transparent', backgroundColor: colors.band, pointRadius: 0, fill: '-1' },
+                        { 
+                            label: '中位數餘額 (50th)', 
+                            data: p50, 
+                            borderColor: '#ffffff', 
+                            borderWidth: 2, 
+                            borderDash: [6, 4], // 虛線樣式
+                            pointRadius: 0, 
+                            fill: false, 
+                            tension: 0.3 
+                        },
+                        { label: '25th Percentile', data: p25, borderColor: 'transparent', backgroundColor: colors.band, pointRadius: 0, fill: '-1' },
+                        { label: '5th Percentile', data: p5, borderColor: 'transparent', backgroundColor: 'transparent', pointRadius: 0, fill: false },
+                        {
+                            label: '平均餘額',
+                            data: avg,
+                            borderColor: colors.main,
+                            backgroundColor: colors.main + '22',
+                            borderWidth: 2.5,
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.3
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    plugins: {
+                        legend: {
+                            labels: {
+                                color: '#aaa',
+                                filter: (item) => item.text === '平均餘額' || item.text === '中位數餘額 (50th)' || item.text === '25th Percentile' || item.text === '75th Percentile'
+                            }
+                        },
+                        tooltip: {
+                            backgroundColor: 'rgba(15,12,41,0.95)',
+                            titleColor: '#fff',
+                            bodyColor: '#ccc',
+                            borderColor: 'rgba(255,255,255,0.1)',
+                            borderWidth: 1,
+                            padding: 12,
+                            callbacks: {
+                                label: function(ctx) {
+                                    return `${ctx.dataset.label}: ${formatNumber(ctx.raw)}`;
+                                }
+                            }
+                        }
+                    },
+                    scales: {
+                        x: {
+                            title: { display: true, text: '回合', color: '#888' },
+                            ticks: { color: '#666' },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        },
+                        y: {
+                            title: { display: true, text: '帳戶餘額', color: '#888' },
+                            ticks: { color: '#666', callback: (v) => formatNumber(v) },
+                            grid: { color: 'rgba(255,255,255,0.05)' }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateStats(avgFinal, medianFinal, maxFinal, ruinCount, successCount, totalSims, initialBalance, mode, betPercent) {
+            const ruinPct = (ruinCount / totalSims * 100).toFixed(1);
+            const successPct = (successCount / totalSims * 100).toFixed(1);
+            const roi = ((avgFinal - initialBalance) / initialBalance * 100).toFixed(1);
+
+            const modeNames = { 
+                aggressive: '進取', 
+                defensive: '防守', 
+                '5050': '50/50', 
+                '2575': '25/75', 
+                '7525': '75/25' 
+            };
+
+            document.getElementById('statsGrid').innerHTML = `
+                <div class="stat-card">
+                    <div class="stat-value stat-neutral">${modeNames[mode]}</div>
+                    <div class="stat-label">使用模式</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-neutral">${(betPercent * 100).toFixed(0)}%</div>
+                    <div class="stat-label">進取下注比例</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value ${avgFinal >= initialBalance ? 'stat-positive' : 'stat-negative'}">${formatNumber(avgFinal)}</div>
+                    <div class="stat-label">平均最終餘額</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value ${medianFinal >= initialBalance ? 'stat-positive' : 'stat-negative'}">${formatNumber(medianFinal)}</div>
+                    <div class="stat-label">中位數最終餘額</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-positive">${formatNumber(maxFinal)}</div>
+                    <div class="stat-label">最高最終餘額</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value ${parseFloat(roi) >= 0 ? 'stat-positive' : 'stat-negative'}">${roi}%</div>
+                    <div class="stat-label">平均投資報酬率</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-warning">${ruinCount} 次</div>
+                    <div class="stat-label">破產次數 (${ruinPct}%)</div>
+                </div>
+                <div class="stat-card">
+                    <div class="stat-value stat-positive">${successCount} 次</div>
+                    <div class="stat-label">達標次數 (${successPct}%)</div>
+                </div>
+            `;
+        }
+
+        function updateLegend(mode, betPercent) {
+            const modeInfo = {
+                aggressive: { color: '#f5576c', text: `進取：純利潤 < 40,000 時下注 10,000；≥ 40,000 時下注帳戶餘額的 ${(betPercent*100).toFixed(0)}%` },
+                defensive: { color: '#4facfe', text: '防守：始終下注 10,000（純防守模式）' },
+                '5050': { color: '#f093fb', text: `50/50：純利潤 ≥ 40,000 時，每回合有 50% 機率下注餘額的 ${(betPercent*100).toFixed(0)}%，50% 機率下注 10,000` },
+                '2575': { color: '#43e97b', text: `25/75：純利潤 ≥ 40,000 時，每回合有 25% 機率下注餘額的 ${(betPercent*100).toFixed(0)}%，75% 機率下注 10,000` },
+                '7525': { color: '#fa709a', text: `75/25：純利潤 ≥ 40,000 時，每回合有 75% 機率下注餘額的 ${(betPercent*100).toFixed(0)}%，25% 機率下注 10,000` }
+            };
+            const info = modeInfo[mode];
+            document.getElementById('legendArea').innerHTML = `
+                <div class="legend-item">
+                    <span class="legend-dot" style="background:${info.color}"></span>
+                    ${info.text}
+                </div>
+            `;
+        }
+
+        function formatNumber(n) {
+            if (n === undefined || n === null) return '0';
+            if (Math.abs(n) >= 1000000) return (n / 1000000).toFixed(2) + 'M';
+            if (Math.abs(n) >= 1000) return (n / 1000).toFixed(1) + 'K';
+            return n.toFixed(0);
+        }
+
+        function resetChart() {
+            if (chart) { chart.destroy(); chart = null; }
+            document.getElementById('statsGrid').innerHTML = '';
+            document.getElementById('legendArea').innerHTML = '';
+            const ctx = document.getElementById('simChart').getContext('2d');
+            chart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: [], datasets: [] },
+                options: {
+                    responsive: true, maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        x: { ticks: { color: '#666' }, grid: { color: 'rgba(255,255,255,0.05)' } },
+                        y: { ticks: { color: '#666' }, grid: { color: 'rgba(255,255,255,0.05)' } }
+                    }
+                }
+            });
+        }
+
+        window.addEventListener('load', () => {
+            checkProbSum();
+            resetChart();
+        });
+    </script>
+</body>
+</html>
